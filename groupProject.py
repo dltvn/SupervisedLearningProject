@@ -1,57 +1,86 @@
 import pandas as pd
-import seaborn as seaborn
+import seaborn as sns
 import matplotlib.pyplot as plt
 
-#Load Data
+# Load Data
 file_path = '/Users/vusondeptrai/Desktop/TOTAL_KSI_6386614326836635957.csv'
 df_Group1 = pd.read_csv(file_path)
 
-#Data Exploration
+# Data Exploration
+print("\n===== DATA EXPLORATION =====")
+print("\n** Dataset Information **")
 print(df_Group1.info())
+
+print("\n** Data Types **")
 print(df_Group1.dtypes)
-print(df_Group1.head())
+
+print("\n** First 5 Rows of Data **")
+print(df_Group1.head().to_string())
+
+print("\n** Dataset Shape (Rows, Columns) **")
 print(df_Group1.shape)
-print(df_Group1.columns)
-print(df_Group1.describe())
 
-#Statistics Assessments
-print('Mean:', df_Group1.mean(numeric_only=True))
-print('Median:', df_Group1.median(numeric_only=True))
-print('Mode:', df_Group1.mode().iloc[0])
-print('Variance:', df_Group1.var(numeric_only=True))
-print('Correlations: ',df_Group1.corr(numeric_only=True))
-print('Standard Deviation:', df_Group1.std(numeric_only= True))
+print("\n** Column Names **")
+print(df_Group1.columns.tolist())
 
-#Missing Values
-print('Missing values per column: \n', df_Group1.isnull().sum())
-plt.figure(figsize=(10,6))
-seaborn.heatmap(df_Group1.isnull(), cmap="Blues", cbar=False, yticklabels=False)
+print("\n** Summary Statistics **")
+print(df_Group1.describe().transpose().to_string())
+
+# Statistics Assessments
+print("\n===== STATISTICAL ASSESSMENTS =====")
+print("\n** Mean Values **")
+print(df_Group1.mean(numeric_only=True).round(2).to_string())
+
+print("\n** Median Values **")
+print(df_Group1.median(numeric_only=True).to_string())
+
+print("\n** Mode (First Occurrence) **")
+print(df_Group1.mode().iloc[0].to_string())
+
+print("\n** Variance **")
+print(df_Group1.var(numeric_only=True).round(2).to_string())
+
+print("\n** Correlation Matrix **")
+print(df_Group1.corr(numeric_only=True).round(2).to_string())
+
+print("\n** Standard Deviation **")
+print(df_Group1.std(numeric_only=True).round(2).to_string())
+
+# Missing Values
+print("\n===== MISSING VALUES ASSESSMENT =====")
+missing_values = df_Group1.isnull().sum()
+print("\n** Missing Values Per Column **")
+print(missing_values[missing_values > 0].to_string())
+
+plt.figure(figsize=(10, 6))
+sns.heatmap(df_Group1.isnull(), cmap="Blues", cbar=False, yticklabels=False)
 plt.title("Missing Data Heatmap")
 plt.show()
 
-#Graphs and Visualization
-df_Group1_numeric = df_Group1.select_dtypes(include = ['int64', 'float64'])
+# Graphs and Visualization
+df_Group1_numeric = df_Group1.select_dtypes(include=['int64', 'float64'])
 
-#Boxplot
+# Boxplot
 plt.figure(figsize=(12, 6))
 df_Group1_numeric.boxplot(rot=45)
-plt.title("Boxplot of Numeric Columns")
+plt.title("Boxplot of Numeric Columns (Outlier Detection)")
+plt.ylabel("Values")
+plt.xticks(rotation=45)
 plt.show()
 
-#Histogram
+# Histogram
 df_Group1_numeric.hist(figsize=(12, 10), bins=30, edgecolor='black')
-plt.suptitle("Histograms of Numeric Columns")
+plt.suptitle("Distribution of Numeric Features")
 plt.show()
 
-#Pairplot
+# Pairplot (Limited to Key Features)
 subset_cols = ['LATITUDE', 'LONGITUDE', 'TIME', 'FATAL_NO']
-seaborn.pairplot(df_Group1[subset_cols], diag_kind="hist")
+sns.pairplot(df_Group1[subset_cols], diag_kind="hist")
+plt.suptitle("Pairwise Relationships of Key Features", y=1.02)
 plt.show()
 
-#Correlation heat map
+# Correlation Heatmap
 plt.figure(figsize=(12, 8))
-seaborn.heatmap(df_Group1_numeric.corr(), annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
-plt.title("Correlation Heatmap")
+sns.heatmap(df_Group1_numeric.corr(), annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+plt.title("Correlation Heatmap of Numeric Variables")
 plt.show()
-
-
