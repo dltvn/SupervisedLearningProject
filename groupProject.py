@@ -1,9 +1,15 @@
+import os.path
+
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+# to make pandas print dataframes wider
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+
 # Load Data
-file_path = '/Users/vusondeptrai/Desktop/TOTAL_KSI_6386614326836635957.csv'
+file_path = os.path.join(os.getcwd(), "dataset.csv")
 df_Group1 = pd.read_csv(file_path)
 
 # Data Exploration
@@ -22,6 +28,9 @@ print(df_Group1.shape)
 
 print("\n** Column Names **")
 print(df_Group1.columns.tolist())
+
+print("\n** Class Counts **")
+print(df_Group1["INJURY"].value_counts())
 
 print("\n** Summary Statistics **")
 print(df_Group1.describe().transpose().to_string())
