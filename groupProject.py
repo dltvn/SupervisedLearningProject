@@ -30,7 +30,7 @@ print("\n** Column Names **")
 print(df_Group1.columns.tolist())
 
 print("\n** Class Counts **")
-print(df_Group1["INJURY"].value_counts())
+print(df_Group1["ACCLASS"].value_counts())
 
 print("\n** Summary Statistics **")
 print(df_Group1.describe().transpose().to_string())
