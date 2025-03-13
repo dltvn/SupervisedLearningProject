@@ -3,6 +3,10 @@ import os.path
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, StandardScaler
+from sklearn.impute import SimpleImputer
 
 # to make pandas print dataframes wider
 pd.set_option('display.max_columns', None)
@@ -93,3 +97,39 @@ plt.figure(figsize=(12, 8))
 sns.heatmap(df_Group1_numeric.corr(), annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
 plt.title("Correlation Heatmap of Numeric Variables")
 plt.show()
+
+# Drop unnecessary columns
+df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM'], inplace=True)
+
+# Identify categorical and numerical columns
+categorical_columns = df_Group1.select_dtypes(include=['object']).columns.tolist()
+numerical_columns = df_Group1.select_dtypes(include=['int64', 'float64']).columns.tolist()
+
+# Define preprocessing steps
+num_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='mean')),  # Handle missing values
+    ('scaler', StandardScaler())  # Standardization (zero mean, unit variance)
+])
+
+cat_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='most_frequent')),  # Fill missing categorical values
+    ('onehot', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'))  # One-hot encode
+])
+
+# Combine into a ColumnTransformer
+preprocessor = ColumnTransformer([
+    ('num', num_pipeline, numerical_columns),
+    ('cat', cat_pipeline, categorical_columns)
+])
+
+# Apply transformations
+df_transformed = preprocessor.fit_transform(df_Group1)
+
+# Convert to DataFrame with correct column names
+cat_feature_names = preprocessor.named_transformers_['cat'].named_steps['onehot'].get_feature_names_out(categorical_columns)
+all_feature_names = numerical_columns + cat_feature_names.tolist()
+
+df_final = pd.DataFrame(df_transformed, columns=all_feature_names)
+
+# Check the result
+print(df_final.head())
