@@ -68,7 +68,7 @@ print(missing_values[missing_values > 0].to_string())
 plt.figure(figsize=(10, 6))
 sns.heatmap(df_Group1.isnull(), cmap="Blues", cbar=False, yticklabels=False)
 plt.title("Missing Data Heatmap")
-plt.show()
+#plt.show()
 
 # Graphs and Visualization
 df_Group1_numeric = df_Group1.select_dtypes(include=['int64', 'float64'])
@@ -79,24 +79,24 @@ df_Group1_numeric.boxplot(rot=45)
 plt.title("Boxplot of Numeric Columns (Outlier Detection)")
 plt.ylabel("Values")
 plt.xticks(rotation=45)
-plt.show()
+#plt.show()
 
 # Histogram
 df_Group1_numeric.hist(figsize=(12, 10), bins=30, edgecolor='black')
 plt.suptitle("Distribution of Numeric Features")
-plt.show()
+#plt.show()
 
 # Pairplot (Limited to Key Features)
 subset_cols = ['LATITUDE', 'LONGITUDE', 'TIME', 'FATAL_NO']
 sns.pairplot(df_Group1[subset_cols], diag_kind="hist")
 plt.suptitle("Pairwise Relationships of Key Features", y=1.02)
-plt.show()
+#plt.show()
 
 # Correlation Heatmap
 plt.figure(figsize=(12, 8))
 sns.heatmap(df_Group1_numeric.corr(), annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
 plt.title("Correlation Heatmap of Numeric Variables")
-plt.show()
+#plt.show()
 
 # Drop unnecessary columns
 df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM'], inplace=True)
@@ -124,12 +124,4 @@ preprocessor = ColumnTransformer([
 
 # Apply transformations
 df_transformed = preprocessor.fit_transform(df_Group1)
-
-# Convert to DataFrame with correct column names
-cat_feature_names = preprocessor.named_transformers_['cat'].named_steps['onehot'].get_feature_names_out(categorical_columns)
-all_feature_names = numerical_columns + cat_feature_names.tolist()
-
-df_final = pd.DataFrame(df_transformed, columns=all_feature_names)
-
-# Check the result
-print(df_final.head())
+print(type(df_transformed))
