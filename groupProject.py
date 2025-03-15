@@ -128,7 +128,7 @@ numerical_indices = list(range(len(numerical_columns)))
 categorical_indices = list(range(len(numerical_columns), len(numerical_columns + categorical_columns)))
 
 # Split into train and test data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=42,stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,random_state=1,stratify=y)
 
 # imputer before resampling as it doesn't work with missing values
 imputer = ColumnTransformer([
@@ -146,9 +146,9 @@ encoder_scaler = ColumnTransformer([
 # logistic regression for pipeline testing purposes, best model will be chosen in deliverable 2
 training_pipeline = Pipeline([
     ('imputer', imputer),
-    ('smote', SMOTENC(categorical_features=categorical_indices, random_state=42)),
+    ('smote', SMOTENC(categorical_features=categorical_indices, random_state=1)),
     ('encoder_scaler', encoder_scaler),
-    ('classifier', LogisticRegression(max_iter=1000, random_state=42))
+    ('classifier', LogisticRegression(max_iter=1000, random_state=1))
 ])
 
 training_pipeline.fit(X_train, y_train)
