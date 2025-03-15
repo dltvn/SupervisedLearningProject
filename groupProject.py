@@ -1,5 +1,7 @@
 import os.path
+from collections import defaultdict
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -108,8 +110,8 @@ plt.xlabel('ACCLASS')
 plt.ylabel('Count')
 plt.show()
 
-# Drop unnecessary columns. !!!Will be updated in part 2 using feature importance
-df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM'], inplace=True)
+# Drop unnecessary columns. x,y are directly correlated with lat and long so dropping to avoid collinearity !!!Will be updated in part 2 using feature importance
+df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM', 'x', 'y'], inplace=True)
 
 # Define target
 target_col = 'ACCLASS'
