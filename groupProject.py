@@ -3,8 +3,11 @@ import os.path
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from imblearn.over_sampling import SMOTENC
 from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from imblearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, StandardScaler
 from sklearn.impute import SimpleImputer
 
@@ -98,30 +101,50 @@ sns.heatmap(df_Group1_numeric.corr(), annot=True, cmap='coolwarm', fmt=".2f", li
 plt.title("Correlation Heatmap of Numeric Variables")
 #plt.show()
 
-# Drop unnecessary columns
+# Drop unnecessary columns. !!!Will be updated in part 2 using feature importance
 df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM'], inplace=True)
 
-# Identify categorical and numerical columns
-categorical_columns = df_Group1.select_dtypes(include=['object']).columns.tolist()
-numerical_columns = df_Group1.select_dtypes(include=['int64', 'float64']).columns.tolist()
+# Define target
+target_col = 'ACCLASS'
 
-# Define preprocessing steps
-num_pipeline = Pipeline([
-    ('imputer', SimpleImputer(strategy='mean')),  # Handle missing values
-    ('scaler', StandardScaler())  # Standardization (zero mean, unit variance)
+# Drop rows where class is missing (there is 1)
+df_Group1 = df_Group1[df_Group1[target_col].notna()]
+
+# split into X and y
+X = df_Group1.drop(columns=[target_col])
+y = df_Group1[target_col]
+
+# Identify categorical and numerical columns and indices
+categorical_columns = X.select_dtypes(include=['object']).columns.tolist()
+numerical_columns = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+numerical_indices = list(range(len(numerical_columns)))
+categorical_indices = list(range(len(numerical_columns), len(numerical_columns + categorical_columns)))
+
+# Split into train and test data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=42,stratify=y)
+
+# imputer before resampling as it doesn't work with missing values
+imputer = ColumnTransformer([
+    ('num_imputer', SimpleImputer(strategy='mean'), numerical_columns),
+    ('cat_imputer', SimpleImputer(strategy='most_frequent'), categorical_columns)
 ])
 
-cat_pipeline = Pipeline([
-    ('imputer', SimpleImputer(strategy='most_frequent')),  # Fill missing categorical values
-    ('onehot', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'))  # One-hot encode
+# one hot and scaler after resampling as it should be done on raw data
+encoder_scaler = ColumnTransformer([
+    ('num_scaler', StandardScaler(), numerical_indices),
+    ('cat_encoder', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'), categorical_indices)
 ])
 
-# Combine into a ColumnTransformer
-preprocessor = ColumnTransformer([
-    ('num', num_pipeline, numerical_columns),
-    ('cat', cat_pipeline, categorical_columns)
+# full pipeline: imputer->resampling->one hot and scaling->classifier
+# logistic regression for pipeline testing purposes, best model will be chosen in deliverable 2
+training_pipeline = Pipeline([
+    ('imputer', imputer),
+    ('smote', SMOTENC(categorical_features=categorical_indices, random_state=42)),
+    ('encoder_scaler', encoder_scaler),
+    ('classifier', LogisticRegression(max_iter=1000, random_state=42))
 ])
 
-# Apply transformations
-df_transformed = preprocessor.fit_transform(df_Group1)
-print(type(df_transformed))
+training_pipeline.fit(X_train, y_train)
+print(training_pipeline.score(X_train, y_train))
+# may throw a warning as test data might have categories not present in the training data
+print(training_pipeline.score(X_test, y_test))
