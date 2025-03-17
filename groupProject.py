@@ -78,13 +78,19 @@ plt.show()
 # Graphs and Visualization
 df_Group1_numeric = df_Group1.select_dtypes(include=['int64', 'float64'])
 
-# Boxplot
+# Boxplots
 plt.figure(figsize=(12, 6))
 df_Group1_numeric.boxplot(rot=45)
 plt.title("Boxplot of Numeric Columns (Outlier Detection)")
 plt.ylabel("Values")
 plt.xticks(rotation=45)
 plt.show()
+# Individual (for better interpretability)
+# for col in df_Group1_numeric.columns:
+#     plt.figure(figsize=(6, 4))
+#     sns.boxplot(y=df_Group1_numeric[col])
+#     plt.title(f"Boxplot of {col}")
+#     plt.show()
 
 # Histogram
 df_Group1_numeric.hist(figsize=(12, 10), bins=30, edgecolor='black')
