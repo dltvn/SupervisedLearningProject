@@ -111,7 +111,7 @@ plt.ylabel('Count')
 plt.show()
 
 # Drop unnecessary columns. x,y are directly correlated with lat and long so dropping to avoid collinearity !!!Will be updated in part 2 using feature importance
-df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM', 'x', 'y'], inplace=True)
+df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM', 'x', 'y', 'DIVISION'], inplace=True)
 
 # Define target
 target_col = 'ACCLASS'
