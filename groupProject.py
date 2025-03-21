@@ -1,6 +1,4 @@
 import os.path
-from collections import defaultdict
-
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -9,7 +7,7 @@ from imblearn.over_sampling import SMOTENC
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from imblearn.pipeline import Pipeline
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, StandardScaler
 from sklearn.impute import SimpleImputer
 
@@ -70,9 +68,14 @@ missing_values = df_Group1.isnull().sum()
 print("\n** Missing Values Per Column **")
 print(missing_values[missing_values > 0].to_string())
 
-plt.figure(figsize=(10, 6))
-sns.heatmap(df_Group1.isnull(), cmap="Blues", cbar=False, yticklabels=False)
-plt.title("Missing Data Heatmap")
+# Missing values countplot
+plt.figure(figsize=(12, 6))
+missing_values_plot = missing_values[missing_values > 0].plot(kind='bar')
+plt.title('Missing Values Count by Column')
+plt.xlabel('Columns')
+plt.ylabel('Number of Missing Values')
+plt.xticks(rotation=45)
+plt.tight_layout()
 plt.show()
 
 # Graphs and Visualization
@@ -124,6 +127,8 @@ target_col = 'ACCLASS'
 
 # Drop rows where class is missing (there is 1)
 df_Group1 = df_Group1[df_Group1[target_col].notna()]
+# Drop rows where class is Property Damage 0 as we are only interested in fatalities
+df_Group1 = df_Group1[df_Group1[target_col] != 'Property Damage O']
 
 # split into X and y
 X = df_Group1.drop(columns=[target_col])
@@ -136,30 +141,42 @@ numerical_indices = list(range(len(numerical_columns)))
 categorical_indices = list(range(len(numerical_columns), len(numerical_columns + categorical_columns)))
 
 # Split into train and test data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,random_state=1,stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1, stratify=y)
 
-# imputer before resampling as it doesn't work with missing values
+# Impute missing values
 imputer = ColumnTransformer([
     ('num_imputer', SimpleImputer(strategy='mean'), numerical_columns),
     ('cat_imputer', SimpleImputer(strategy='most_frequent'), categorical_columns)
 ])
 
-# one hot and scaler after resampling as it should be done on raw data
-encoder_scaler = ColumnTransformer([
-    ('num_scaler', StandardScaler(), numerical_indices),
-    ('cat_encoder', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'), categorical_indices)
-])
+# Apply imputer to both train and test sets
+X_train_imputed = imputer.fit_transform(X_train)
+X_test_imputed = imputer.transform(X_test)
 
-# full pipeline: imputer->resampling->one hot and scaling->classifier
-# logistic regression for pipeline testing purposes, best model will be chosen in deliverable 2
-training_pipeline = Pipeline([
-    ('imputer', imputer),
-    ('smote', SMOTENC(categorical_features=categorical_indices, random_state=1)),
-    ('encoder_scaler', encoder_scaler),
+# Apply SMOTENC
+smote = SMOTENC(categorical_features=categorical_indices, random_state=1)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train_imputed, y_train)
+
+# Step 3: Display class distribution after SMOTENC
+plt.figure(figsize=(8, 6))
+sns.countplot(x=y_train_resampled)
+plt.title('Class Distribution After SMOTENC')
+plt.xlabel('ACCLASS')
+plt.ylabel('Count')
+plt.show()
+
+# Step 4: Create and fit the final pipeline (encoder/scaler + classifier)
+final_pipeline = Pipeline([
+    ('encoder_scaler', ColumnTransformer([
+        ('num_scaler', StandardScaler(), numerical_indices),
+        ('cat_encoder', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'), categorical_indices)
+    ])),
     ('classifier', LogisticRegression(max_iter=1000, random_state=1))
 ])
 
-training_pipeline.fit(X_train, y_train)
-print(training_pipeline.score(X_train, y_train))
-# may throw a warning as test data might have categories not present in the training data
-print(training_pipeline.score(X_test, y_test))
+# Fit the final pipeline
+final_pipeline.fit(X_train_resampled, y_train_resampled)
+
+# Print scores
+print("\nTraining Score:", final_pipeline.score(X_train_resampled, y_train_resampled))
+print("Test Score:", final_pipeline.score(X_test_imputed, y_test))
