@@ -19,6 +19,12 @@ pd.set_option('display.width', 1000)
 file_path = os.path.join(os.getcwd(), "dataset.csv")
 df_Group1 = pd.read_csv(file_path)
 
+# Remove duplicates
+df_Group1.drop_duplicates(inplace=True)
+
+# Standardize column names
+df_Group1.columns = df_Group1.columns.str.lower().str.replace(' ', '_')
+
 # Data Exploration
 print("\n===== DATA EXPLORATION =====")
 print("\n** Dataset Information **")
@@ -37,7 +43,7 @@ print("\n** Column Names **")
 print(df_Group1.columns.tolist())
 
 print("\n** Class Counts **")
-print(df_Group1["ACCLASS"].value_counts())
+print(df_Group1['acclass'].value_counts())
 
 print("\n** Summary Statistics **")
 print(df_Group1.describe().transpose().to_string())
@@ -101,7 +107,7 @@ plt.suptitle("Distribution of Numeric Features")
 plt.show()
 
 # Pairplot (Limited to Key Features)
-subset_cols = ['LATITUDE', 'LONGITUDE', 'TIME', 'FATAL_NO']
+subset_cols = ['latitude', 'longitude', 'time', 'fatal_no']
 sns.pairplot(df_Group1[subset_cols], diag_kind="hist")
 plt.suptitle("Pairwise Relationships of Key Features", y=1.02)
 plt.show()
@@ -113,17 +119,17 @@ plt.title("Correlation Heatmap of Numeric Variables")
 plt.show()
 
 # Class distribution countplot
-sns.countplot(x=df_Group1["ACCLASS"])
+sns.countplot(x=df_Group1['acclass'])
 plt.title('Class Distribution Before SMOTENC')
 plt.xlabel('ACCLASS')
 plt.ylabel('Count')
 plt.show()
 
 # Drop unnecessary columns. x,y are directly correlated with lat and long so dropping to avoid collinearity !!!Will be updated in part 2 using feature importance
-df_Group1.drop(columns=['OBJECTID', 'INDEX', 'ACCNUM', 'x', 'y', 'DIVISION'], inplace=True)
+df_Group1.drop(columns=['objectid', 'index', 'accnum', 'x', 'y', 'division'], inplace=True)
 
 # Define target
-target_col = 'ACCLASS'
+target_col = 'acclass'
 
 # Drop rows where class is missing (there is 1)
 df_Group1 = df_Group1[df_Group1[target_col].notna()]
