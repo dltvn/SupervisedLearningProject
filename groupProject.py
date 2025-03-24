@@ -147,6 +147,11 @@ plt.figure(figsize=(10, 8))
 sns.scatterplot(x='LONGITUDE', y='LATITUDE', hue='ACCLASS', data=df_Group1, alpha=0.6)
 plt.title('Geospatial Distribution of Accidents by ACCLASS')
 plt.show()
+# Density Plot using kde
+plt.figure(figsize=(10, 8))
+sns.kdeplot(data=df_Group1,x='LONGITUDE',y='LATITUDE',hue='ACCLASS',alpha=0.5,fill=True)
+plt.title('Geospatial Density of Accidents by ACCLASS')
+plt.show()
 
 # Trend of ACCLASS over Years
 df_Group1['YEAR'] = pd.to_datetime(df_Group1['DATE']).dt.year
@@ -212,7 +217,7 @@ N = 15
 top_features = feature_importances_sorted.head(N).index.tolist()
 print(f"\nSelected Top {N} Features:\n", top_features)
 
-# Plotting top 15 features by Importance
+# Plotting top features by importance score
 plt.figure(figsize=(10, 6))
 sns.barplot(x=feature_importances_sorted.values, y=feature_importances_sorted.index)
 plt.title('Features by Importance')
