@@ -167,6 +167,13 @@ plt.title('Trend of ACCLASS over Months')
 plt.ylabel('Count')
 plt.show()
 
+# Trend of ACCLASS over Hours
+df_Group1['HOUR'] = pd.to_datetime(df_Group1['DATE']).dt.hour
+df_Group1.groupby('HOUR')['ACCLASS'].value_counts().unstack().plot(kind='line')
+plt.title('Trend of ACCLASS over Hours')
+plt.ylabel('Count')
+plt.show()
+
 
 #! DROP ROWS
 # Drop rows where class is missing (there is 1)
