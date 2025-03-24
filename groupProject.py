@@ -211,6 +211,13 @@ feature_importances_sorted = feature_importances.sort_values(ascending=False)
 N = 15
 top_features = feature_importances_sorted.head(N).index.tolist()
 print(f"\nSelected Top {N} Features:\n", top_features)
+
+# Plotting top 15 features by Importance
+plt.figure(figsize=(10, 6))
+sns.barplot(x=feature_importances_sorted.values, y=feature_importances_sorted.index)
+plt.title('Features by Importance')
+plt.xlabel('Importance Score')
+plt.show()
 # Extract selected features from imputed(not encoded) X
 X_selected = X_imputed_df[top_features]
 
