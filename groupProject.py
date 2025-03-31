@@ -16,6 +16,7 @@ from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, StandardScaler, O
 from sklearn.impute import SimpleImputer
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+import pickle
 from scipy.stats import uniform, randint
 
 # to make pandas print dataframes wider
@@ -238,6 +239,21 @@ X_selected = X_imputed_df[top_features]
 numerical_selected = [col for col in top_features if col in numerical_columns]
 categorical_selected = [col for col in top_features if col in categorical_columns]
 
+
+#! Print categorical feature values
+print("\n### Categorical Features ###")
+for col in categorical_selected:
+    unique_values = X_selected[col].unique()
+    print(f"{col}: {list(unique_values)}\n")
+
+#! Print min/max for numerical features
+print("\n### Numerical Features ###")
+for col in numerical_selected:
+    min_val = X_selected[col].min()
+    max_val = X_selected[col].max()
+    print(f"{col}: Min = {min_val}, Max = {max_val}\n")
+
+
 #! TRAIN TEST SPLIT
 # Split selected data into train/test 70/30
 X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.3, random_state=1, stratify=y)
@@ -457,3 +473,9 @@ def evaluate_model(model, X_test, y_test, model_name):
 log_reg_test = pipelines['Logistic Regression']
 log_reg_test.fit(X_train_resampled, y_train_resampled)
 print(evaluate_model(log_reg_test, X_test, y_test, "Logistic Regression"))
+
+#! DUMPING LOGISTIC REGRESSION MODEL INTO PKL
+with open('logistic_regression_model.pkl', 'wb') as file:
+    pickle.dump(log_reg_test, file)
+
+print("Logistic Regression model saved as logistic_regression_model.pkl")
