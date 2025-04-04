@@ -1,19 +1,30 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Apr  3 20:49:05 2025
+
+@author: arjun
+"""
+
 import os.path
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from imblearn.over_sampling import SMOTENC
+from sklearn.metrics import accuracy_score
 from sklearn.compose import ColumnTransformer
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, StandardScaler
-from sklearn.impute import SimpleImputer
-from sklearn.feature_selection import SelectKBest, mutual_info_classif
 from sklearn.ensemble import RandomForestClassifier
-import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report, roc_auc_score, roc_curve
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import RocCurveDisplay, confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, train_test_split
+from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, StandardScaler, OrdinalEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+import pickle
+from scipy.stats import uniform, randint
 
 # to make pandas print dataframes wider
 pd.set_option('display.max_columns', None)
@@ -23,14 +34,9 @@ pd.set_option('display.width', 1000)
 file_path = os.path.join(os.getcwd(), "C:/Users/arjun/Downloads/dataset.csv")
 df_Group1 = pd.read_csv(file_path)
 
-# Remove duplicates
-df_Group1.drop_duplicates(inplace=True)
+df_Group1_numeric = df_Group1.select_dtypes(include=['int64', 'float64'])
 
-# Standardize column names
-df_Group1.columns = df_Group1.columns.str.lower().str.replace(' ', '_')
-
-# Data Exploration
-print("\n===== DATA EXPLORATION =====")
+#! EXPLORATION
 print("\n** Dataset Information **")
 print(df_Group1.info())
 
@@ -46,34 +52,61 @@ print(df_Group1.shape)
 print("\n** Column Names **")
 print(df_Group1.columns.tolist())
 
-print("\n** Class Counts **")
-print(df_Group1['acclass'].value_counts())
-
 print("\n** Summary Statistics **")
 print(df_Group1.describe().transpose().to_string())
 
+#! STATISTICS + STATISTICAL PLOTS
 # Statistics Assessments
-print("\n===== STATISTICAL ASSESSMENTS =====")
 print("\n** Mean Values **")
 print(df_Group1.mean(numeric_only=True).round(2).to_string())
+# Mean Values of Numeric Features Grouped by ACCLASS
+grouped_means = df_Group1.groupby('ACCLASS')[df_Group1_numeric.columns.tolist()].mean()
+plt.figure(figsize=(12, 6))
+sns.heatmap(grouped_means.transpose(), annot=True, fmt=".2f", cmap="YlGnBu")
+plt.title("Mean Values of Numeric Features Grouped by ACCLASS")
+plt.xlabel("ACCLASS")
+plt.ylabel("Features")
+plt.show()
 
 print("\n** Median Values **")
 print(df_Group1.median(numeric_only=True).to_string())
+# Median Values of Numeric Features Grouped by ACCLASS
+grouped_medians = df_Group1.groupby('ACCLASS')[df_Group1_numeric.columns.tolist()].median()
+plt.figure(figsize=(12, 6))
+sns.heatmap(grouped_medians.transpose(), annot=True, fmt=".2f", cmap="YlGnBu")
+plt.title("Median Values of Numeric Features Grouped by ACCLASS")
+plt.xlabel("ACCLASS")
+plt.ylabel("Features")
+plt.show()
 
 print("\n** Mode (First Occurrence) **")
 print(df_Group1.mode().iloc[0].to_string())
 
+
+
 print("\n** Variance **")
 print(df_Group1.var(numeric_only=True).round(2).to_string())
-
-print("\n** Correlation Matrix **")
-print(df_Group1.corr(numeric_only=True).round(2).to_string())
+# Variance of Numeric Features Grouped by ACCLASS
+grouped_variances = df_Group1.groupby('ACCLASS')[df_Group1_numeric.columns.tolist()].var()
+plt.figure(figsize=(12, 6))
+sns.heatmap(grouped_variances.transpose(), annot=True, fmt=".2f", cmap="YlGnBu")
+plt.title("Variance of Numeric Features Grouped by ACCLASS")
+plt.xlabel("ACCLASS")
+plt.ylabel("Features")
+plt.show()
 
 print("\n** Standard Deviation **")
 print(df_Group1.std(numeric_only=True).round(2).to_string())
+# Standard Deviation of Numeric Features Grouped by ACCLASS
+grouped_stds = df_Group1.groupby('ACCLASS')[df_Group1_numeric.columns.tolist()].std()
+plt.figure(figsize=(12, 6))
+sns.heatmap(grouped_stds.transpose(), annot=True, fmt=".2f", cmap="YlGnBu")
+plt.title("Standard Deviation of Numeric Features Grouped by ACCLASS")
+plt.xlabel("ACCLASS")
+plt.ylabel("Features")
+plt.show()
 
-# Missing Values
-print("\n===== MISSING VALUES ASSESSMENT =====")
+#! MISSING VALUES
 missing_values = df_Group1.isnull().sum()
 print("\n** Missing Values Per Column **")
 print(missing_values[missing_values > 0].to_string())
@@ -87,439 +120,432 @@ plt.ylabel('Number of Missing Values')
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
-plt.close()
 
-# Graphs and Visualization
-df_Group1_numeric = df_Group1.select_dtypes(include=['int64', 'float64'])
-
-# Boxplots
-plt.figure(figsize=(12, 6))
-df_Group1_numeric.boxplot(rot=45)
-plt.title("Boxplot of Numeric Columns (Outlier Detection)")
-plt.ylabel("Values")
-plt.xticks(rotation=45)
+#! CLASS BALANCE/DISTRIBUTION
+# Class distribution
+print("\n** Class Counts **")
+print(df_Group1["ACCLASS"].value_counts())
+# Class distribution countplot
+sns.countplot(x=df_Group1["ACCLASS"])
+plt.title('Class Distribution Before SMOTENC')
+plt.xlabel('ACCLASS')
+plt.ylabel('Count')
 plt.show()
-plt.close()
 
+#! OTHER PLOTS
 # Histogram
 df_Group1_numeric.hist(figsize=(12, 10), bins=30, edgecolor='black')
 plt.suptitle("Distribution of Numeric Features")
-plt.tight_layout()
 plt.show()
-plt.close()
+
+#? Pairplot (Limited to Key Features)
+subset_cols = ['LATITUDE', 'LONGITUDE', 'TIME', 'FATAL_NO']
+sns.pairplot(df_Group1[subset_cols], diag_kind="hist")
+plt.suptitle("Pairwise Relationships of Key Features", y=1.02)
+plt.show()
 
 # Correlation Heatmap
 plt.figure(figsize=(12, 8))
 sns.heatmap(df_Group1_numeric.corr(), annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
 plt.title("Correlation Heatmap of Numeric Variables")
-plt.tight_layout()
 plt.show()
-plt.close()
 
-# Class distribution countplot
-plt.figure(figsize=(10, 6))
-sns.countplot(x=df_Group1['acclass'])
-plt.title('Class Distribution Before SMOTENC')
-plt.xlabel('ACCLASS')
+# Map
+plt.figure(figsize=(10, 8))
+sns.scatterplot(x='LONGITUDE', y='LATITUDE', hue='ACCLASS', data=df_Group1, alpha=0.6)
+plt.title('Geospatial Distribution of Accidents by ACCLASS')
+plt.show()
+# Density Plot using kde
+plt.figure(figsize=(10, 8))
+sns.kdeplot(data=df_Group1,x='LONGITUDE',y='LATITUDE',hue='ACCLASS',alpha=0.5,fill=True)
+plt.title('Geospatial Density of Accidents by ACCLASS')
+plt.show()
+
+# ✅ Parse DATE column with mixed formats and handle errors
+df_Group1['DATE'] = pd.to_datetime(df_Group1['DATE'], format='mixed', errors='coerce')
+
+# ✅ Drop rows where DATE couldn't be parsed
+df_Group1 = df_Group1[df_Group1['DATE'].notna()]
+
+# ✅ Extract YEAR, MONTH, and HOUR
+df_Group1['YEAR'] = df_Group1['DATE'].dt.year
+df_Group1['MONTH'] = df_Group1['DATE'].dt.month
+df_Group1['HOUR'] = df_Group1['DATE'].dt.hour
+
+# ✅ Plot Trend of ACCLASS over Years
+df_Group1.groupby('YEAR')['ACCLASS'].value_counts().unstack().plot(kind='line')
+plt.title('Trend of ACCLASS over Years')
 plt.ylabel('Count')
+plt.xlabel('Year')
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
-plt.close()
 
-# Drop unnecessary columns initially
-# Remove object_id, index, and accnum as they're just identifiers
-df_Group1.drop(columns=['objectid', 'index', 'accnum'], inplace=True)
+# ✅ Plot Trend of ACCLASS over Months
+df_Group1.groupby('MONTH')['ACCLASS'].value_counts().unstack().plot(kind='line')
+plt.title('Trend of ACCLASS over Months')
+plt.ylabel('Count')
+plt.xlabel('Month')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
 
-# Define target
-target_col = 'acclass'
+# ✅ Plot Trend of ACCLASS over Hours
+df_Group1.groupby('HOUR')['ACCLASS'].value_counts().unstack().plot(kind='line')
+plt.title('Trend of ACCLASS over Hours')
+plt.ylabel('Count')
+plt.xlabel('Hour')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
 
+
+
+
+#! DROP ROWS
 # Drop rows where class is missing (there is 1)
-df_Group1 = df_Group1[df_Group1[target_col].notna()]
+df_Group1 = df_Group1[df_Group1["ACCLASS"].notna()]
 # Drop rows where class is Property Damage 0 as we are only interested in fatalities
-df_Group1 = df_Group1[df_Group1[target_col] != 'Property Damage O']
+df_Group1 = df_Group1[df_Group1["ACCLASS"] != 'Property Damage O']
 
-# split into X and y
-X = df_Group1.drop(columns=[target_col])
-y = df_Group1[target_col]
+#! DROP COLUMNS
+# Drop index columns and x and y as they are perfectly correlated with lat and long
+df_Group1.drop(columns=["OBJECTID", "INDEX", "ACCNUM", "x", "y"], inplace=True)
 
-# Identify categorical and numerical columns
+# Plit into X an y
+X = df_Group1.drop(columns=["ACCLASS"])
+y = df_Group1["ACCLASS"]
+
+# Extract cat and num columns
 categorical_columns = X.select_dtypes(include=['object']).columns.tolist()
 numerical_columns = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
 
-# Print columns for reference
-print("\n===== FEATURE TYPES =====")
-print("Numerical columns:", numerical_columns)
-print("Categorical columns:", categorical_columns)
 
-# Split into train and test data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1, stratify=y)
-
-# ===== FEATURE SELECTION =====
-
-# Step 1: Handle missing values before feature selection
+#! FILL MISSING VALUES
+# Fill missing values
 imputer = ColumnTransformer([
     ('num_imputer', SimpleImputer(strategy='mean'), numerical_columns),
     ('cat_imputer', SimpleImputer(strategy='most_frequent'), categorical_columns)
 ])
-
-X_train_imputed = pd.DataFrame(
-    imputer.fit_transform(X_train),
-    columns=numerical_columns + categorical_columns
-)
-X_test_imputed = pd.DataFrame(
-    imputer.transform(X_test),
-    columns=numerical_columns + categorical_columns
-)
-
-print("\n===== FEATURE SELECTION USING 3 METHODS =====")
-
-# METHOD 1: Mutual Information (for both numeric and categorical features)
-print("\n=== METHOD 1: MUTUAL INFORMATION ===")
-
-# First encode categorical features for mutual information
-encoder_mi = ColumnTransformer(
-    [('cat_encoder', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'), categorical_columns)],
-    remainder='passthrough'
-)
-X_train_encoded_mi = encoder_mi.fit_transform(X_train_imputed)
-feature_names_mi = encoder_mi.get_feature_names_out()
-
-# Apply mutual information
-selector_mi = SelectKBest(mutual_info_classif, k='all')
-selector_mi.fit(X_train_encoded_mi, y_train)
-
-# Get mutual information scores
-mi_scores = pd.DataFrame({
-    'Feature': feature_names_mi,
-    'MI_Score': selector_mi.scores_
-})
-mi_scores = mi_scores.sort_values('MI_Score', ascending=False)
-print("\n** Mutual Information Feature Scores **")
-print(mi_scores.head(15).to_string())
-
-# Visualize mutual information scores (top 10)
-plt.figure(figsize=(12, 8))
-top_mi_features = mi_scores.head(10)
-sns.barplot(x='MI_Score', y='Feature', data=top_mi_features)
-plt.title('Top 10 Features by Mutual Information')
-plt.tight_layout()
-plt.show()
-plt.close()
-
-# METHOD 2: Random Forest Feature Importance (as requested)
-print("\n=== METHOD 2: RANDOM FOREST FEATURE IMPORTANCE ===")
-
-# First, one-hot encode categorical features for the Random Forest
-encoder_rf = ColumnTransformer(
-    [('cat_encoder', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'), categorical_columns)],
-    remainder='passthrough'
-)
-
-X_train_encoded_rf = encoder_rf.fit_transform(X_train_imputed)
-feature_names_rf = encoder_rf.get_feature_names_out()
-
-# Train a Random Forest
-rf = RandomForestClassifier(n_estimators=100, random_state=1)
-rf.fit(X_train_encoded_rf, y_train)
-
-# Get feature importances
-feature_importance = pd.DataFrame({
-    'Feature': feature_names_rf,
-    'Importance': rf.feature_importances_
-})
-feature_importance = feature_importance.sort_values('Importance', ascending=False)
-print("\n** Random Forest Feature Importance **")
-print(feature_importance.head(15).to_string())  # Show top 15 features
-
-# Visualize Random Forest feature importance (top 10)
-plt.figure(figsize=(12, 8))
-top_rf_features = feature_importance.head(10)
-sns.barplot(x='Importance', y='Feature', data=top_rf_features)
-plt.title('Top 10 Features by Random Forest Importance')
-plt.tight_layout()
-plt.show()
-plt.close()
-
-# METHOD 3: Correlation Analysis with Target (for numerical features)
-print("\n=== METHOD 3: CORRELATION WITH TARGET ===")
-
-# Create a dataframe with target for correlation analysis
-y_numeric = pd.get_dummies(y, drop_first=True)  # Convert categorical target to numeric
-target_columns = y_numeric.columns
-
-# Concatenate features and target for correlation analysis
-X_train_with_target = pd.concat([X_train_imputed[numerical_columns], y_numeric], axis=1)
-
-# Calculate correlation matrix
-correlation_with_target = {}
-for target_col in target_columns:
-    # Calculate correlation of each numerical feature with this target class
-    corr_values = X_train_with_target[numerical_columns].corrwith(X_train_with_target[target_col]).abs()
-
-    # Store in dictionary
-    for feature, corr in corr_values.items():
-        if feature in correlation_with_target:
-            correlation_with_target[feature] = max(correlation_with_target[feature], corr)
-        else:
-            correlation_with_target[feature] = corr
-
-# Convert to DataFrame
-corr_scores = pd.DataFrame({
-    'Feature': list(correlation_with_target.keys()),
-    'Correlation': list(correlation_with_target.values())
-})
-corr_scores = corr_scores.sort_values('Correlation', ascending=False)
-print("\n** Feature Correlation with Target **")
-print(corr_scores.to_string())
-
-# Visualize correlation scores
-plt.figure(figsize=(12, 8))
-sns.barplot(x='Correlation', y='Feature', data=corr_scores)
-plt.title('Numerical Features by Correlation with Target')
-plt.tight_layout()
-plt.show()
-plt.close()
-
-print("\n===== FEATURE SELECTION CONSENSUS =====")
-
-# Get top features from each method
-top_mi_features = mi_scores.head(5)['Feature'].tolist()
-top_rf_features = feature_importance.head(5)['Feature'].tolist()
-top_corr_features = corr_scores.head(5)['Feature'].tolist()
+X_imputed = imputer.fit_transform(X)
+# Convert back to DataFrame for readability and column names
+X_imputed_df = pd.DataFrame(X_imputed, columns=[name.split('__')[-1] for name in imputer.get_feature_names_out()], index=X.index)
 
 
-# Check for column name differences due to encoding
-# Extract original column names from encoded features
-def extract_original_feature(encoded_feature):
-    # For features from OneHotEncoder, extract the original column name
-    if 'cat_encoder__' in encoded_feature:
-        # Format: cat_encoder__column_name_value
-        parts = encoded_feature.split('__')
-        if len(parts) > 1:
-            column_and_value = parts[1]
-            # Extract column name (before the last underscore)
-            return '_'.join(column_and_value.split('_')[:-1])
-    # For numeric features (passthrough in encoder)
-    elif 'remainder__' in encoded_feature:
-        return encoded_feature.replace('remainder__', '')
-    # Return as is if can't parse
-    return encoded_feature
+#! RANDOM FOREST FEATURE IMPORTANCE
+# Temporarily ordinal encode X for feature selection
+feature_selection_transformer = ColumnTransformer([
+    ('cat_encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), categorical_columns)
+], remainder='passthrough')
+X_fs = feature_selection_transformer.fit_transform(X_imputed_df)
+# Convert to DataFrame for RandomForestClassifier
+X_fs_df = pd.DataFrame(X_fs, columns=[name.split('__')[-1] for name in feature_selection_transformer.get_feature_names_out()], index=X.index)
+# Fit data to random forest for feature selection
+rf_clf = RandomForestClassifier(n_estimators=100, random_state=1)
+rf_clf.fit(X_fs_df, y)
+# Feature importances in descending order
+feature_importances = pd.Series(rf_clf.feature_importances_, index=X_fs_df.columns)
+feature_importances_sorted = feature_importances.sort_values(ascending=False)
+# Select top N features
+N = 15
+top_features = feature_importances_sorted.head(N).index.tolist()
+print(f"\nSelected Top {N} Features:\n", top_features)
 
-
-# Extract original feature names
-original_mi_features = [extract_original_feature(feat) for feat in top_mi_features]
-original_rf_features = [extract_original_feature(feat) for feat in top_rf_features]
-
-# For numerical features from correlation, they're already in original form
-original_corr_features = top_corr_features
-
-# Count appearances across methods
-feature_counts = {}
-for feature_list in [original_mi_features, original_rf_features, original_corr_features]:
-    for feature in feature_list:
-        if feature in feature_counts:
-            feature_counts[feature] += 1
-        else:
-            feature_counts[feature] = 1
-
-# Convert to DataFrame and sort
-feature_consensus = pd.DataFrame({
-    'Feature': list(feature_counts.keys()),
-    'Methods_Selected': list(feature_counts.values())
-})
-feature_consensus = feature_consensus.sort_values(['Methods_Selected', 'Feature'], ascending=[False, True])
-
-print("\n** Feature Selection Consensus **")
-print(feature_consensus.to_string())
-
-# Check for collinearity in numerical features
-print("\nChecking for Collinearity Among Numerical Features:")
-corr_matrix = X_train_imputed[numerical_columns].corr().abs()
-high_corr_pairs = []
-
-for i in range(len(corr_matrix.columns)):
-    for j in range(i + 1, len(corr_matrix.columns)):
-        if corr_matrix.iloc[i, j] > 0.7:  # Threshold for high correlation
-            high_corr_pairs.append((corr_matrix.columns[i], corr_matrix.columns[j], corr_matrix.iloc[i, j]))
-
-if high_corr_pairs:
-    print("\nHighly Correlated Feature Pairs (correlation > 0.7):")
-    for feat1, feat2, corr in high_corr_pairs:
-        print(f"{feat1} and {feat2}: {corr:.3f}")
-else:
-    print("No high correlation pairs found among numerical features.")
-
-print("\n===== FEATURE SELECTION RECOMMENDATION =====")
-
-# Get features selected by at least 2 methods or with very high importance in one method
-selected_by_multiple = feature_consensus[feature_consensus['Methods_Selected'] >= 2]['Feature'].tolist()
-highly_important_in_rf = [extract_original_feature(feat) for feat in feature_importance.head(5)['Feature'].tolist()]
-highly_important_in_mi = [extract_original_feature(feat) for feat in mi_scores.head(5)['Feature'].tolist()]
-
-# Combine and remove duplicates
-recommended_features = list(set(selected_by_multiple + highly_important_in_rf + highly_important_in_mi))
-
-# For categorical features, we need to keep entire column
-categorical_to_keep = [col for col in categorical_columns if any(col in feat for feat in recommended_features)]
-numerical_to_keep = [col for col in numerical_columns if col in recommended_features]
-
-# Final list of recommended features
-final_recommended = list(set(numerical_to_keep + categorical_to_keep))
-
-print("\nRECOMMENDED FEATURES TO KEEP:")
-for feature in final_recommended:
-    methods = []
-    if feature in numerical_columns:
-        if feature in original_mi_features: methods.append("Mutual Information")
-        if feature in original_rf_features: methods.append("Random Forest")
-        if feature in original_corr_features: methods.append("Correlation Analysis")
-    else:  # Categorical feature
-        # Check if any encoding of this feature is important
-        if any(feature in feat for feat in original_mi_features): methods.append("Mutual Information")
-        if any(feature in feat for feat in original_rf_features): methods.append("Random Forest")
-
-    print(f"- {feature} (Selected by: {', '.join(methods)})")
-
-# Features to remove
-all_features = numerical_columns + categorical_columns
-features_to_remove = [feat for feat in all_features if feat not in final_recommended]
-
-print("\nFEATURES TO CONSIDER REMOVING:")
-for feature in features_to_remove:
-    print(f"- {feature}")
-
-# Remove highly correlated features from recommended list
-if high_corr_pairs:
-    print("\nFrom correlated feature pairs, consider removing one from each pair:")
-    for feat1, feat2, corr in high_corr_pairs:
-        # Check if both are in recommended list
-        if feat1 in final_recommended and feat2 in final_recommended:
-            # Compare feature importance to decide which to keep
-            feat1_importance = 0
-            feat2_importance = 0
-
-            # Check importance in RF
-            for idx, row in feature_importance.iterrows():
-                if feat1 in row['Feature']:
-                    feat1_importance += row['Importance']
-                if feat2 in row['Feature']:
-                    feat2_importance += row['Importance']
-
-            if feat1_importance > feat2_importance:
-                print(f"- Consider removing {feat2} (correlated with {feat1}, but less important)")
-            else:
-                print(f"- Consider removing {feat1} (correlated with {feat2}, but less important)")
-
-print("\n===== FINAL MODEL WITH SELECTED FEATURES =====")
-
-# Filter to keep only recommended features
-X_train_selected = X_train_imputed[final_recommended]
-X_test_selected = X_test_imputed[final_recommended]
-
-# Identify categorical columns in the selected dataset
-categorical_selected = [col for col in X_train_selected.columns if col in categorical_columns]
-numerical_selected = [col for col in X_train_selected.columns if col in numerical_columns]
-
-# Categorical indices for SMOTE
-categorical_indices = [i for i, col in enumerate(X_train_selected.columns) if col in categorical_selected]
-
-# Apply SMOTENC with selected features
-smote = SMOTENC(categorical_features=categorical_indices, random_state=1)
-X_train_resampled, y_train_resampled = smote.fit_resample(X_train_selected, y_train)
-
-# Create a final pipeline with selected features
-final_pipeline = Pipeline([
-    ('encoder_scaler', ColumnTransformer([
-        ('num_scaler', StandardScaler(), [i for i, col in enumerate(X_train_selected.columns)
-                                          if col in numerical_selected]),
-        ('cat_encoder', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'),
-         [i for i, col in enumerate(X_train_selected.columns) if col in categorical_selected])
-    ]) if categorical_selected else ('num_scaler', StandardScaler())),
-    ('classifier', LogisticRegression(max_iter=1000, random_state=1))
-])
-
-# Fit the final pipeline
-final_pipeline.fit(X_train_resampled, y_train_resampled)
-
-# Print scores
-print("\nTraining Score:", final_pipeline.score(X_train_resampled, y_train_resampled))
-print("Test Score:", final_pipeline.score(X_test_selected, y_test))
-
-# Visualize class distribution after SMOTENC
+# Plotting top features by importance score
 plt.figure(figsize=(10, 6))
+sns.barplot(x=feature_importances_sorted.values, y=feature_importances_sorted.index)
+plt.title('Features by Importance')
+plt.xlabel('Importance Score')
+plt.show()
+# Extract selected features from imputed(not encoded) X
+X_selected = X_imputed_df[top_features]
+
+#! NUM AND CAT UPDATE
+# Update numerical and categorical columns
+numerical_selected = [col for col in top_features if col in numerical_columns]
+categorical_selected = [col for col in top_features if col in categorical_columns]
+
+
+#! Print categorical feature values
+print("\n### Categorical Features ###")
+for col in categorical_selected:
+    unique_values = X_selected[col].unique()
+    print(f"{col}: {list(unique_values)}\n")
+
+#! Print min/max for numerical features
+print("\n### Numerical Features ###")
+for col in numerical_selected:
+    min_val = X_selected[col].min()
+    max_val = X_selected[col].max()
+    print(f"{col}: Min = {min_val}, Max = {max_val}\n")
+
+
+#! TRAIN TEST SPLIT
+# Split selected data into train/test 70/30
+X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.3, random_state=1, stratify=y)
+
+#! BALANCING
+# Balance the dataset using SMOTENC (works well with categorical)
+smote = SMOTENC(categorical_features=categorical_selected, random_state=1)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+X_train_resampled = pd.DataFrame(X_train_resampled,columns=smote.get_feature_names_out(),index=None)
+# Class distribution countplot
 sns.countplot(x=y_train_resampled)
 plt.title('Class Distribution After SMOTENC')
 plt.xlabel('ACCLASS')
 plt.ylabel('Count')
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()
-plt.close()
-
-# Feature importance visualization for final visualization
-plt.figure(figsize=(12, 8))
-plt.title('Selected Features Overview')
-plt.barh([f"{feat} (Selected by {feature_counts.get(feat, 0)} methods)" for feat in final_recommended],
-         [feature_counts.get(feat, 0) for feat in final_recommended])
-plt.xlabel('Number of Selection Methods')
-plt.ylabel('Selected Features')
-plt.tight_layout()
-plt.show()
-plt.close()
-
-# Predictions
-y_pred = final_pipeline.predict(X_test_selected)
-y_pred_proba = final_pipeline.predict_proba(X_test_selected)[:, 1]  # For ROC curve
-
-print("\n===== MODEL EVALUATION =====")
-
-# Performance Metrics
-print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
-print(f"Precision: {precision_score(y_test, y_pred, average='weighted'):.4f}")
-print(f"Recall: {recall_score(y_test, y_pred, average='weighted'):.4f}")
-print(f"F1 Score: {f1_score(y_test, y_pred, average='weighted'):.4f}")
-
-# Classification Report
-print("\n** Classification Report **")
-print(classification_report(y_test, y_pred))
-
-# Confusion Matrix
-conf_matrix = confusion_matrix(y_test, y_pred)
-plt.figure(figsize=(8, 6))
-sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=y_test.unique(), yticklabels=y_test.unique())
-plt.title("Confusion Matrix")
-plt.xlabel("Predicted Label")
-plt.ylabel("True Label")
 plt.show()
 
-# Convert categorical target variable to numeric binary values
-y_test_numeric = (y_test == 'Fatal').astype(int)  # Assigns 1 to 'Fatal', 0 to 'Non-Fatal Injury'
-y_pred_proba = final_pipeline.predict_proba(X_test_selected)[:, 1]  # Probability of 'Fatal'
+#! SCALER AND ENCODING
+# Scaler and one hot for training
+one_hot = OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore');
+one_hot_transformer = ColumnTransformer([
+    ('cat_encoder', one_hot , categorical_selected)
+], remainder="passthrough")
+scaler_one_hot = ColumnTransformer([
+    ('num_scaler', StandardScaler(), numerical_selected),
+    ('cat_encoder', one_hot , categorical_selected)
+])
 
-# ROC Curve & AUC Score (for binary classification)
-if len(y_test.unique()) == 2:
-    fpr, tpr, thresholds = roc_curve(y_test_numeric, y_pred_proba)
-    auc_score = roc_auc_score(y_test_numeric, y_pred_proba)
+#! MODEL PIPELINES
+# Model pipeline dictionary
+pipelines = {
+    'Logistic Regression': Pipeline([
+        ('preprocessor', scaler_one_hot),
+        ('classifier', LogisticRegression(max_iter=1000, random_state=1))
+    ]),
+    'Decision Tree': Pipeline([
+        ('preprocessor', one_hot_transformer),
+        ('classifier', DecisionTreeClassifier(random_state=1))
+    ]),
+    'SVM': Pipeline([
+        ('preprocessor', scaler_one_hot),
+        ('classifier', SVC(probability=True, random_state=1))
+    ]),
+    'Random Forest': Pipeline([
+        ('preprocessor', one_hot_transformer),
+        ('classifier', RandomForestClassifier(random_state=1))
+    ]),
+    'Neural Network': Pipeline([
+        ('preprocessor', scaler_one_hot),
+        ('classifier', MLPClassifier(max_iter=500, random_state=1))
+    ])
+}
+best_models = {}
 
-    plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, color='blue', label=f'ROC Curve (AUC = {auc_score:.4f})')
-    plt.plot([0, 1], [0, 1], 'k--')  # Diagonal reference line
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
-    plt.legend(loc="lower right")
+#! GRID SEARCH
+# # Logistic Regression Grid Search
+# log_reg_params = {
+#     'classifier__C': [0.01, 0.1, 1, 10, 100],
+#     'classifier__penalty': ['l1', 'l2'],
+#     'classifier__solver': ['liblinear']
+# }
+# log_reg_grid = GridSearchCV(pipelines['Logistic Regression'], log_reg_params, cv=5, scoring='accuracy')
+# log_reg_grid.fit(X_train_resampled, y_train_resampled)
+
+# # Decision Tree Grid Search
+# dt_params = {
+#     'classifier__criterion': ['gini', 'entropy'],
+#     'classifier__max_depth': [None, 5, 10, 20],
+#     'classifier__min_samples_split': [2, 5, 10]
+# }
+# dt_grid = GridSearchCV(pipelines['Decision Tree'], dt_params, cv=5, scoring='accuracy')
+# dt_grid.fit(X_train_resampled, y_train_resampled)
+
+# # Random Forest Grid Search
+# rf_params = {
+#     'classifier__n_estimators': [50, 100, 200],
+#     'classifier__criterion': ['gini', 'entropy'],
+#     'classifier__max_depth': [None, 10, 20],
+#     'classifier__min_samples_split': [2, 5, 10]
+# }
+# rf_grid = GridSearchCV(pipelines['Random Forest'], rf_params, cv=5, scoring='accuracy')
+# rf_grid.fit(X_train_resampled, y_train_resampled)
+
+# # SVM Grid Search
+# svm_params = {
+#     'classifier__C': [0.1, 1, 10],
+#     'classifier__kernel': ['linear', 'rbf'],
+#     'classifier__gamma': ['scale', 'auto']
+# }
+# svm_grid = GridSearchCV(pipelines['SVM'], svm_params, cv=5, scoring='accuracy')
+# svm_grid.fit(X_train_resampled, y_train_resampled)
+
+# # Neural Network (MLP) Grid Search
+# mlp_params = {
+#     'classifier__hidden_layer_sizes': [(50,), (100,), (100, 50)],
+#     'classifier__activation': ['relu', 'tanh'],
+#     'classifier__solver': ['adam'],
+#     'classifier__alpha': [0.0001, 0.001],
+#     'classifier__learning_rate': ['constant', 'adaptive']
+# }
+# mlp_grid = GridSearchCV(pipelines['Neural Network'], mlp_params, cv=5, scoring='accuracy')
+# mlp_grid.fit(X_train_resampled, y_train_resampled)
+
+# # Print best parameters and add best model to the dictionary
+# print("Best Logistic Regression:", log_reg_grid.best_params_)
+# best_models["Logistic Regression"] = log_reg_grid.best_estimator_
+# print("Best Decision Tree:", dt_grid.best_params_)
+# best_models["Decision Tree"] = dt_grid.best_estimator_
+# print("Best Random Forest:", rf_grid.best_params_)
+# best_models["Random Forest"] = rf_grid.best_estimator_
+# print("Best SVM:", svm_grid.best_params_)
+# best_models["SVM"] = svm_grid.best_estimator_
+# print("Best MLP:", mlp_grid.best_params_)
+# best_models["MLP"] = mlp_grid.best_estimator_
+
+# #! RANDOMIZED SEARCH
+# # Logistic Regression Randomized Search
+# log_reg_dist = {
+#     'classifier__C': uniform(0.01, 100),
+#     'classifier__penalty': ['l1', 'l2'],
+#     'classifier__solver': ['liblinear']
+# }
+# log_reg_rand = RandomizedSearchCV(pipelines['Logistic Regression'], log_reg_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
+# log_reg_rand.fit(X_train_resampled, y_train_resampled)
+
+# # Decision Tree Randomized Search
+# dt_dist = {
+#     'classifier__criterion': ['gini', 'entropy'],
+#     'classifier__max_depth': [None] + list(range(5, 30)),
+#     'classifier__min_samples_split': randint(2, 20)
+# }
+# dt_rand = RandomizedSearchCV(pipelines['Decision Tree'], dt_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
+# dt_rand.fit(X_train_resampled, y_train_resampled)
+
+# # Random Forest Randomized Search
+# rf_dist = {
+#     'classifier__n_estimators': randint(50, 500),
+#     'classifier__criterion': ['gini', 'entropy'],
+#     'classifier__max_depth': [None] + list(range(10, 50)),
+#     'classifier__min_samples_split': randint(2, 20)
+# }
+# rf_rand = RandomizedSearchCV(pipelines['Random Forest'], rf_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
+# rf_rand.fit(X_train_resampled, y_train_resampled)
+
+# # SVM Randomized Search
+# svm_dist = {
+#     'classifier__C': uniform(0.1, 10),
+#     'classifier__kernel': ['linear', 'rbf'],
+#     'classifier__gamma': ['scale', 'auto']
+# }
+# svm_rand = RandomizedSearchCV(pipelines['SVM'], svm_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
+# svm_rand.fit(X_train_resampled, y_train_resampled)
+
+# # Neural Network (MLP) Randomized Search
+# mlp_dist = {
+#     'classifier__hidden_layer_sizes': [(50,), (100,), (150, 75, 50)],
+#     'classifier__activation': ['relu', 'tanh'],
+#     'classifier__solver': ['adam'],
+#     'classifier__alpha': uniform(0.0001, 0.01),
+#     'classifier__learning_rate': ['constant', 'adaptive']
+# }
+# mlp_rand = RandomizedSearchCV(pipelines['Neural Network'], mlp_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
+# mlp_rand.fit(X_train_resampled, y_train_resampled)
+
+# # Print best parameters and add best model to the dictionary
+# print("Best Logistic Regression:", log_reg_rand.best_params_)
+# best_models["Logistic Regression"] = log_reg_rand.best_estimator_
+# print("Best Decision Tree:", dt_rand.best_params_)
+# best_models["Decision Tree"] = dt_rand.best_estimator_
+# print("Best Random Forest:", rf_rand.best_params_)
+# best_models["Random Forest"] = rf_rand.best_estimator_
+# print("Best SVM:", svm_rand.best_params_)
+# best_models["SVM"] = svm_rand.best_estimator_
+# print("Best MLP:", mlp_rand.best_params_)
+# best_models["MLP"] = mlp_rand.best_estimator_
+
+#! FUNCTION FOR SCORING
+def evaluate_model(model, X_test, y_test, model_name):
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
+
+    acc = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred, pos_label='Fatal')
+    rec = recall_score(y_test, y_pred, pos_label='Fatal')
+    f1 = f1_score(y_test, y_pred, pos_label='Fatal')
+    auc = roc_auc_score(y_test, y_prob) if y_prob is not None else None
+
+    print(f"\n===== {model_name} Performance =====")
+    print(f"Accuracy : {acc:.4f}")
+    print(f"Precision: {prec:.4f}")
+    print(f"Recall   : {rec:.4f}")
+    print(f"F1 Score : {f1:.4f}")
+    if auc: print(f"ROC AUC  : {auc:.4f}")
+
+    # Confusion Matrix
+    cm = confusion_matrix(y_test, y_pred)
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+    plt.title(f"{model_name} Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
     plt.show()
-else:
-    print("\nROC Curve is only applicable for binary classification.")
+
+    # ROC Curve
+    if y_prob is not None:
+        RocCurveDisplay.from_estimator(model, X_test, y_test)
+        plt.title(f"{model_name} ROC Curve")
+        plt.show()
+
+    return {'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1, 'auc': auc}
+
+# #! SCORING BEST MODELS
+# results = {}
+# for model_name, model in best_models.items():
+#     print(f"\nTraining {model_name}...")
+#     results[model_name] = evaluate_model(model, X_test, y_test, model_name)
+
+#! SCORING A TEST MODEL
+log_reg_test = pipelines['Logistic Regression']
+log_reg_test.fit(X_train_resampled, y_train_resampled)
+print(evaluate_model(log_reg_test, X_test, y_test, "Logistic Regression"))
+
+#! DUMPING LOGISTIC REGRESSION MODEL INTO PKL
+with open('logistic_regression_model.pkl', 'wb') as file:
+    pickle.dump(log_reg_test, file)
+
+print("Logistic Regression model saved as logistic_regression_model.pkl")
 
 
+# ========================
+# 🚀 Flask API Starts Here
+# ========================
+from flask import Flask, request, jsonify
+import pickle
+import pandas as pd
 
-# Conclusion analysis in the code so other group member who do the documentation part can base on it
-# and have other perspective analysis
-print("\n===== CONCLUSION =====")
-print(
-    f"Feature selection has been applied using 3 methods: Mutual Information, Random Forest, and Correlation Analysis.")
-print(f"From the original {len(all_features)} features, {len(final_recommended)} important features were selected.")
-print("These selected features have been used to build the final model.")
-print(f"The model accuracy on the test set is: {final_pipeline.score(X_test_selected, y_test):.4f}")
+# Load model
+with open('logistic_regression_model.pkl', 'rb') as file:
+    model = pickle.load(file)
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "🚦 Accident Severity Classifier API is Running!"
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        # Get input JSON data
+        input_data = request.get_json()
+
+        # Convert to DataFrame
+        input_df = pd.DataFrame([input_data])
+
+        # Predict
+        prediction = model.predict(input_df)[0]
+        prediction_proba = model.predict_proba(input_df)[0].tolist()
+
+        return jsonify({
+            'prediction': prediction,
+            'prediction_proba': prediction_proba
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+if __name__ == '__main__':
+    app.run(debug=True)
+print("📢 Flask is starting...")
+app.run(debug=True)
