@@ -312,6 +312,8 @@ top_combined = combined_scores_sorted.head(15)
 print("\n** Combined Feature Importances (Top 15) **")
 print(top_combined.to_string())
 
+
+
 # Plot combined importances
 plt.figure(figsize=(12, 8))
 sns.barplot(x=top_combined.values, y=top_combined.index)
