@@ -207,41 +207,6 @@ X_imputed_df = pd.DataFrame(X_imputed, columns=[name.split('__')[-1] for name in
 
 
 
-#! RANDOM FOREST FEATURE IMPORTANCE
-# Temporarily ordinal encode X for feature selection
-feature_selection_transformer = ColumnTransformer([
-    ('cat_encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), categorical_columns)
-], remainder='passthrough')
-X_fs = feature_selection_transformer.fit_transform(X_imputed_df)
-# Convert to DataFrame for RandomForestClassifier
-X_fs_df = pd.DataFrame(X_fs, columns=[name.split('__')[-1] for name in feature_selection_transformer.get_feature_names_out()], index=X.index)
-# Fit data to random forest for feature selection
-rf_clf = RandomForestClassifier(n_estimators=100, random_state=1)
-rf_clf.fit(X_fs_df, y)
-# Feature importances in descending order
-feature_importances = pd.Series(rf_clf.feature_importances_, index=X_fs_df.columns)
-feature_importances_sorted = feature_importances.sort_values(ascending=False)
-# Select top N features
-N = 15
-top_features = feature_importances_sorted.head(N).index.tolist()
-print(f"\nSelected Top {N} Features:\n", top_features)
-
-# Plotting top features by importance score
-plt.figure(figsize=(10, 6))
-sns.barplot(x=feature_importances_sorted.values, y=feature_importances_sorted.index)
-plt.title('Features by Importance')
-plt.xlabel('Importance Score')
-plt.show()
-# Extract selected features from imputed(not encoded) X
-X_selected = X_imputed_df[top_features]
-
-#! NUM AND CAT UPDATE
-# Update numerical and categorical columns
-numerical_selected = [col for col in top_features if col in numerical_columns]
-categorical_selected = [col for col in top_features if col in categorical_columns]
-
-
-
 
 #! RANDOM FOREST FEATURE IMPORTANCE
 # Temporarily ordinal encode X for feature selection
@@ -257,21 +222,21 @@ X_fs_df = pd.DataFrame(X_fs, columns=[name.split('__')[-1] for name in feature_s
 rf_clf = RandomForestClassifier(n_estimators=100, random_state=1)
 rf_clf.fit(X_fs_df, y)
 # Feature importances in descending order
-feature_importances = pd.Series(rf_clf.feature_importances_, index=X_fs_df.columns)
-feature_importances_sorted = feature_importances.sort_values(ascending=False)
-# Select top N features
-N = 15
-top_features = feature_importances_sorted.head(N).index.tolist()
-print(f"\nSelected Top {N} Features:\n", top_features)
+rf_scores = pd.Series(rf_clf.feature_importances_, index=X_fs_df.columns).sort_values(ascending=False)
+top_rf = rf_scores.head(15).index.to_list()
+# Display Random Forest Information scores
+print("\n** Random Forest Feature Scores **")
+print(rf_scores.head(15).to_string())
 
 # Plotting top features by importance score
-plt.figure(figsize=(10, 6))
-sns.barplot(x=feature_importances_sorted.values, y=feature_importances_sorted.index)
-plt.title('Features by Importance')
-plt.xlabel('Importance Score')
+plt.figure(figsize=(12, 8))
+sns.barplot(x=rf_scores.values, y=rf_scores.index)
+plt.title("Top Features by Mutual Information")
+plt.tight_layout()
 plt.show()
+plt.close()
 
-
+#! MUTUAL INFORMATION FEATURE IMPORTANCE
 from sklearn.feature_selection import mutual_info_classif, SelectKBest
 
 print("\n=== METHOD: MUTUAL INFORMATION ===")
@@ -288,63 +253,45 @@ X_mi_df = pd.DataFrame(X_mi, columns=[name.split('__')[-1] for name in encoder_m
 selector_mi = SelectKBest(mutual_info_classif, k='all')
 selector_mi.fit(X_mi_df, y)
 mi_scores = pd.Series(selector_mi.scores_, index=X_mi_df.columns).sort_values(ascending=False)
-
+top_mi = mi_scores.head(15).index.to_list()
 # Display Mutual Information scores
 print("\n** Mutual Information Feature Scores **")
 print(mi_scores.head(15).to_string())
 # Plot MI scores (Top 15)
 plt.figure(figsize=(12, 8))
-sns.barplot(x=mi_scores.head(15).values, y=mi_scores.head(15).index)
-plt.title("Top 15 Features by Mutual Information")
+sns.barplot(x=mi_scores.values, y=mi_scores.index)
+plt.title("Top Features by Mutual Information")
 plt.tight_layout()
 plt.show()
 plt.close()
 
-# === VOTER: Combine Random Forest + Mutual Information ===
+#! COMBINED FEATURE IMPORTANCE
 print("\n=== FEATURE VOTER: COMBINED RF + MI ===")
 
 # Align indices (columns) and average importances
-common_features = feature_importances.index.intersection(mi_scores.index)
-combined_scores = (feature_importances[common_features] + mi_scores[common_features]) / 2
+common_features = rf_scores.index.intersection(mi_scores.index)
+combined_scores = (rf_scores[common_features] + mi_scores[common_features]) / 2
 combined_scores_sorted = combined_scores.sort_values(ascending=False)
-top_combined = combined_scores_sorted.head(15)
+top_combined = combined_scores_sorted.head(15).index.to_list()
 
 print("\n** Combined Feature Importances (Top 15) **")
-print(top_combined.to_string())
-
-
+print(combined_scores_sorted.head(15).to_string())
 
 # Plot combined importances
 plt.figure(figsize=(12, 8))
-sns.barplot(x=top_combined.values, y=top_combined.index)
-plt.title("Top 15 Features by Combined RF + MI Importance")
+sns.barplot(x=combined_scores_sorted.values, y=combined_scores_sorted.index)
+plt.title("Top Features by Combined RF + MI Importance")
 plt.tight_layout()
 plt.show()
 plt.close()
 
-
-
 # Extract selected features from imputed(not encoded) X
-X_selected = X_imputed_df[top_features]
+X_selected = X_imputed_df[top_combined]
 
 #! NUM AND CAT UPDATE
 # Update numerical and categorical columns
-numerical_selected = [col for col in top_features if col in numerical_columns]
-categorical_selected = [col for col in top_features if col in categorical_columns]
-
-
-#! Print categorical feature values
-print("\n### Categorical Features ###")
-for col in categorical_selected:
-    unique_values = X_selected[col].unique()
-    print(f"{col}: {list(unique_values)}\n")
-
-#! Print min/max for numerical features
-print("\n### Numerical Features ###")
-for col in numerical_selected:
-    min_val = X_selected[col].min()
-    max_val = X_selected[col].max()
-    print(f"{col}: Min = {min_val}, Max = {max_val}\n")
+numerical_selected = [col for col in top_combined if col in numerical_columns]
+categorical_selected = [col for col in top_combined if col in categorical_columns]
 
 
 #! TRAIN TEST SPLIT
