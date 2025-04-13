@@ -18,6 +18,10 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 import pickle
 from scipy.stats import uniform, randint
+from boruta import BorutaPy
+from sklearn.feature_selection import mutual_info_classif, SelectKBest
+import warnings
+warnings.filterwarnings("ignore", message="Found unknown categories.*")
 
 # to make pandas print dataframes wider
 pd.set_option('display.max_columns', None)
@@ -206,92 +210,55 @@ X_imputed = imputer.fit_transform(X)
 X_imputed_df = pd.DataFrame(X_imputed, columns=[name.split('__')[-1] for name in imputer.get_feature_names_out()], index=X.index)
 
 
-
-
-#! RANDOM FOREST FEATURE IMPORTANCE
-# Temporarily ordinal encode X for feature selection
-print("\n=== METHOD: Random Forest ===")
-
+#! FEATURE SELECTION
 feature_selection_transformer = ColumnTransformer([
     ('cat_encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), categorical_columns)
 ], remainder='passthrough')
 X_fs = feature_selection_transformer.fit_transform(X_imputed_df)
-# Convert to DataFrame for RandomForestClassifier
+# Convert to DataFrame
 X_fs_df = pd.DataFrame(X_fs, columns=[name.split('__')[-1] for name in feature_selection_transformer.get_feature_names_out()], index=X.index)
-# Fit data to random forest for feature selection
-rf_clf = RandomForestClassifier(n_estimators=100, random_state=1)
-rf_clf.fit(X_fs_df, y)
-# Feature importances in descending order
-rf_scores = pd.Series(rf_clf.feature_importances_, index=X_fs_df.columns).sort_values(ascending=False)
-top_rf = rf_scores.head(15).index.to_list()
-# Display Random Forest Information scores
-print("\n** Random Forest Feature Scores **")
-print(rf_scores.head(15).to_string())
 
-# Plotting top features by importance score
-plt.figure(figsize=(12, 8))
-sns.barplot(x=rf_scores.values, y=rf_scores.index)
-plt.title("Top Features by Mutual Information")
-plt.tight_layout()
-plt.show()
-plt.close()
-
-#! MUTUAL INFORMATION FEATURE IMPORTANCE
-from sklearn.feature_selection import mutual_info_classif, SelectKBest
+print("\n=== METHOD: Random Forest + Boruta ===")
+# Prepare data for Boruta (must be numpy arrays)
+X_boruta = X_fs_df.values  # Ordinal encoded + imputed
+y_boruta = y.values
+# Initialize Boruta with a random forest
+rf_for_boruta = RandomForestClassifier(n_estimators=100, random_state=1, n_jobs=-1)
+boruta_selector = BorutaPy(estimator=rf_for_boruta, n_estimators='auto', verbose=0, random_state=1)
+boruta_selector.fit(X_boruta, y_boruta)
+# Get selected features
+boruta_selected_features = X_fs_df.columns[boruta_selector.support_].tolist()
+print("Random Forest + Boruta Selected Features:")
+print(boruta_selected_features)
 
 print("\n=== METHOD: MUTUAL INFORMATION ===")
-
-# Encode using OrdinalEncoder to match Random Forest approach (no OneHotEncoder)
-encoder_mi = ColumnTransformer(
-    [('cat_encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1), categorical_columns)],
-    remainder='passthrough'
-)
-X_mi = encoder_mi.fit_transform(X_imputed_df)
-X_mi_df = pd.DataFrame(X_mi, columns=[name.split('__')[-1] for name in encoder_mi.get_feature_names_out()], index=X.index)
-
 # Apply Mutual Information
 selector_mi = SelectKBest(mutual_info_classif, k='all')
-selector_mi.fit(X_mi_df, y)
-mi_scores = pd.Series(selector_mi.scores_, index=X_mi_df.columns).sort_values(ascending=False)
-top_mi = mi_scores.head(15).index.to_list()
-# Display Mutual Information scores
-print("\n** Mutual Information Feature Scores **")
-print(mi_scores.head(15).to_string())
-# Plot MI scores (Top 15)
+selector_mi.fit(X_fs_df, y)
+mi_scores = pd.Series(selector_mi.scores_, index=X_fs_df.columns).sort_values(ascending=False)
+mi_selected_features = mi_scores.head(15).index.to_list()
+# Plot MI scores
 plt.figure(figsize=(12, 8))
 sns.barplot(x=mi_scores.values, y=mi_scores.index)
 plt.title("Top Features by Mutual Information")
 plt.tight_layout()
 plt.show()
 plt.close()
+print("Mutual Information top 15 Features:")
+print(mi_selected_features)
 
-#! COMBINED FEATURE IMPORTANCE
-print("\n=== FEATURE VOTER: COMBINED RF + MI ===")
+print("\n=== METHOD: BORUTA RF + MUTUAL INFORMATION VOTING ===")
+voted_features = list(set(boruta_selected_features).intersection(set(mi_selected_features)))
+print("Features voted for by both boruta rf and mutual information top 15:")
+print(voted_features)
 
-# Align indices (columns) and average importances
-common_features = rf_scores.index.intersection(mi_scores.index)
-combined_scores = (rf_scores[common_features] + mi_scores[common_features]) / 2
-combined_scores_sorted = combined_scores.sort_values(ascending=False)
-top_combined = combined_scores_sorted.head(15).index.to_list()
-
-print("\n** Combined Feature Importances (Top 15) **")
-print(combined_scores_sorted.head(15).to_string())
-
-# Plot combined importances
-plt.figure(figsize=(12, 8))
-sns.barplot(x=combined_scores_sorted.values, y=combined_scores_sorted.index)
-plt.title("Top Features by Combined RF + MI Importance")
-plt.tight_layout()
-plt.show()
-plt.close()
-
-# Extract selected features from imputed(not encoded) X
-X_selected = X_imputed_df[top_combined]
+#! UPDATE X
+X_selected = X_imputed_df[voted_features]
 
 #! NUM AND CAT UPDATE
 # Update numerical and categorical columns
-numerical_selected = [col for col in top_combined if col in numerical_columns]
-categorical_selected = [col for col in top_combined if col in categorical_columns]
+numerical_selected = [col for col in voted_features if col in numerical_columns]
+categorical_selected = [col for col in voted_features if col in categorical_columns]
 
 
 #! TRAIN TEST SPLIT
@@ -311,163 +278,44 @@ plt.ylabel('Count')
 plt.show()
 
 #! SCALER AND ENCODING
-# Scaler and one hot for training
-one_hot = OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore');
-one_hot_transformer = ColumnTransformer([
-    ('cat_encoder', one_hot , categorical_selected)
-], remainder="passthrough")
-scaler_one_hot = ColumnTransformer([
-    ('num_scaler', StandardScaler(), numerical_selected),
-    ('cat_encoder', one_hot , categorical_selected)
+
+preprocessor = ColumnTransformer([
+    ('num', Pipeline([
+        ('imputer', SimpleImputer(strategy='mean')),
+        ('scaler', StandardScaler())
+    ]), numerical_selected),
+    
+    ('cat', Pipeline([
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'))
+    ]), categorical_selected)
 ])
 
 #! MODEL PIPELINES
 # Model pipeline dictionary
 pipelines = {
     'Logistic Regression': Pipeline([
-        ('preprocessor', scaler_one_hot),
+        ('preprocessor', preprocessor),
         ('classifier', LogisticRegression(max_iter=1000, random_state=1))
     ]),
     'Decision Tree': Pipeline([
-        ('preprocessor', one_hot_transformer),
+        ('preprocessor', preprocessor),
         ('classifier', DecisionTreeClassifier(random_state=1))
     ]),
     'SVM': Pipeline([
-        ('preprocessor', scaler_one_hot),
+        ('preprocessor', preprocessor),
         ('classifier', SVC(probability=True, random_state=1))
     ]),
     'Random Forest': Pipeline([
-        ('preprocessor', one_hot_transformer),
+        ('preprocessor', preprocessor),
         ('classifier', RandomForestClassifier(random_state=1))
     ]),
     'Neural Network': Pipeline([
-        ('preprocessor', scaler_one_hot),
+        ('preprocessor', preprocessor),
         ('classifier', MLPClassifier(max_iter=500, random_state=1))
     ])
 }
-best_models = {}
 
-#! GRID SEARCH
-# # Logistic Regression Grid Search
-# log_reg_params = {
-#     'classifier__C': [0.01, 0.1, 1, 10, 100],
-#     'classifier__penalty': ['l1', 'l2'],
-#     'classifier__solver': ['liblinear']
-# }
-# log_reg_grid = GridSearchCV(pipelines['Logistic Regression'], log_reg_params, cv=5, scoring='accuracy')
-# log_reg_grid.fit(X_train_resampled, y_train_resampled)
-
-# # Decision Tree Grid Search
-# dt_params = {
-#     'classifier__criterion': ['gini', 'entropy'],
-#     'classifier__max_depth': [None, 5, 10, 20],
-#     'classifier__min_samples_split': [2, 5, 10]
-# }
-# dt_grid = GridSearchCV(pipelines['Decision Tree'], dt_params, cv=5, scoring='accuracy')
-# dt_grid.fit(X_train_resampled, y_train_resampled)
-
-# # Random Forest Grid Search
-# rf_params = {
-#     'classifier__n_estimators': [50, 100, 200],
-#     'classifier__criterion': ['gini', 'entropy'],
-#     'classifier__max_depth': [None, 10, 20],
-#     'classifier__min_samples_split': [2, 5, 10]
-# }
-# rf_grid = GridSearchCV(pipelines['Random Forest'], rf_params, cv=5, scoring='accuracy')
-# rf_grid.fit(X_train_resampled, y_train_resampled)
-
-# # SVM Grid Search
-# svm_params = {
-#     'classifier__C': [0.1, 1, 10],
-#     'classifier__kernel': ['linear', 'rbf'],
-#     'classifier__gamma': ['scale', 'auto']
-# }
-# svm_grid = GridSearchCV(pipelines['SVM'], svm_params, cv=5, scoring='accuracy')
-# svm_grid.fit(X_train_resampled, y_train_resampled)
-
-# # Neural Network (MLP) Grid Search
-# mlp_params = {
-#     'classifier__hidden_layer_sizes': [(50,), (100,), (100, 50)],
-#     'classifier__activation': ['relu', 'tanh'],
-#     'classifier__solver': ['adam'],
-#     'classifier__alpha': [0.0001, 0.001],
-#     'classifier__learning_rate': ['constant', 'adaptive']
-# }
-# mlp_grid = GridSearchCV(pipelines['Neural Network'], mlp_params, cv=5, scoring='accuracy')
-# mlp_grid.fit(X_train_resampled, y_train_resampled)
-
-# # Print best parameters and add best model to the dictionary
-# print("Best Logistic Regression:", log_reg_grid.best_params_)
-# best_models["Logistic Regression"] = log_reg_grid.best_estimator_
-# print("Best Decision Tree:", dt_grid.best_params_)
-# best_models["Decision Tree"] = dt_grid.best_estimator_
-# print("Best Random Forest:", rf_grid.best_params_)
-# best_models["Random Forest"] = rf_grid.best_estimator_
-# print("Best SVM:", svm_grid.best_params_)
-# best_models["SVM"] = svm_grid.best_estimator_
-# print("Best MLP:", mlp_grid.best_params_)
-# best_models["MLP"] = mlp_grid.best_estimator_
-
-# #! RANDOMIZED SEARCH
-# # Logistic Regression Randomized Search
-# log_reg_dist = {
-#     'classifier__C': uniform(0.01, 100),
-#     'classifier__penalty': ['l1', 'l2'],
-#     'classifier__solver': ['liblinear']
-# }
-# log_reg_rand = RandomizedSearchCV(pipelines['Logistic Regression'], log_reg_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
-# log_reg_rand.fit(X_train_resampled, y_train_resampled)
-
-# # Decision Tree Randomized Search
-# dt_dist = {
-#     'classifier__criterion': ['gini', 'entropy'],
-#     'classifier__max_depth': [None] + list(range(5, 30)),
-#     'classifier__min_samples_split': randint(2, 20)
-# }
-# dt_rand = RandomizedSearchCV(pipelines['Decision Tree'], dt_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
-# dt_rand.fit(X_train_resampled, y_train_resampled)
-
-# # Random Forest Randomized Search
-# rf_dist = {
-#     'classifier__n_estimators': randint(50, 500),
-#     'classifier__criterion': ['gini', 'entropy'],
-#     'classifier__max_depth': [None] + list(range(10, 50)),
-#     'classifier__min_samples_split': randint(2, 20)
-# }
-# rf_rand = RandomizedSearchCV(pipelines['Random Forest'], rf_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
-# rf_rand.fit(X_train_resampled, y_train_resampled)
-
-# # SVM Randomized Search
-# svm_dist = {
-#     'classifier__C': uniform(0.1, 10),
-#     'classifier__kernel': ['linear', 'rbf'],
-#     'classifier__gamma': ['scale', 'auto']
-# }
-# svm_rand = RandomizedSearchCV(pipelines['SVM'], svm_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
-# svm_rand.fit(X_train_resampled, y_train_resampled)
-
-# # Neural Network (MLP) Randomized Search
-# mlp_dist = {
-#     'classifier__hidden_layer_sizes': [(50,), (100,), (150, 75, 50)],
-#     'classifier__activation': ['relu', 'tanh'],
-#     'classifier__solver': ['adam'],
-#     'classifier__alpha': uniform(0.0001, 0.01),
-#     'classifier__learning_rate': ['constant', 'adaptive']
-# }
-# mlp_rand = RandomizedSearchCV(pipelines['Neural Network'], mlp_dist, n_iter=10, cv=5, scoring='accuracy', random_state=1)
-# mlp_rand.fit(X_train_resampled, y_train_resampled)
-
-# # Print best parameters and add best model to the dictionary
-# print("Best Logistic Regression:", log_reg_rand.best_params_)
-# best_models["Logistic Regression"] = log_reg_rand.best_estimator_
-# print("Best Decision Tree:", dt_rand.best_params_)
-# best_models["Decision Tree"] = dt_rand.best_estimator_
-# print("Best Random Forest:", rf_rand.best_params_)
-# best_models["Random Forest"] = rf_rand.best_estimator_
-# print("Best SVM:", svm_rand.best_params_)
-# best_models["SVM"] = svm_rand.best_estimator_
-# print("Best MLP:", mlp_rand.best_params_)
-# best_models["MLP"] = mlp_rand.best_estimator_
 
 #! FUNCTION FOR SCORING
 def evaluate_model(model, X_test, y_test, model_name):
@@ -503,20 +351,19 @@ def evaluate_model(model, X_test, y_test, model_name):
 
     return {'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1, 'auc': auc}
 
-# #! SCORING BEST MODELS
-# results = {}
-# for model_name, model in best_models.items():
-#     print(f"\nTraining {model_name}...")
-#     results[model_name] = evaluate_model(model, X_test, y_test, model_name)
 
-#! SCORING A TEST MODEL
-log_reg_test = pipelines['Logistic Regression']
-log_reg_test.fit(X_train_resampled, y_train_resampled)
-print(evaluate_model(log_reg_test, X_test, y_test, "Logistic Regression"))
+#! EVALUATE ALL DEFAULT MODELS
+# Evaluate all models in the pipelines dictionary
+results = {}
 
-#! DUMPING LOGISTIC REGRESSION MODEL INTO PKL
-with open('logistic_regression_model.pkl', 'wb') as file:
-    pickle.dump(log_reg_test, file)
+for model_name, model in pipelines.items():
+    print(f"\n===== Training and Evaluating: {model_name} =====")
+    model.fit(X_train_resampled, y_train_resampled)
+    results[model_name] = evaluate_model(model, X_test, y_test, model_name)
+
+# #! DUMPING LOGISTIC REGRESSION MODEL INTO PKL
+# with open('logistic_regression_model.pkl', 'wb') as file:
+#     pickle.dump(log_reg_test, file)
 
 
-print("Logistic Regression model saved as logistic_regression_model.pkl")
+# print("Logistic Regression model saved as logistic_regression_model.pkl")
