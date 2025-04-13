@@ -21,8 +21,12 @@ from scipy.stats import uniform, randint
 from boruta import BorutaPy
 from sklearn.feature_selection import mutual_info_classif, SelectKBest
 from sklearn.base import BaseEstimator, TransformerMixin
+from lightgbm import LGBMClassifier
 import warnings
 warnings.filterwarnings("ignore", message="Found unknown categories.*")
+np.random.seed(1)
+import random
+random.seed(1)
 
 # to make pandas print dataframes wider
 pd.set_option('display.max_columns', None)
@@ -316,11 +320,12 @@ pipelines = {
         ('preprocessor', preprocessor),
         ('classifier', DecisionTreeClassifier(random_state=1))
     ]),
-    'SVM': Pipeline([
-        ('feature_selector', FeatureSubsetSelector(voted_features)),
-        ('preprocessor', preprocessor),
-        ('classifier', SVC(probability=True, kernel='linear', random_state=1))
-    ]),
+    # Taking too long to train, even with linear kernel
+    # 'SVM': Pipeline([
+    #     ('feature_selector', FeatureSubsetSelector(voted_features)),
+    #     ('preprocessor', preprocessor),
+    #     ('classifier', SVC(probability=True, kernel='linear', random_state=1))
+    # ]),
     'Random Forest': Pipeline([
         ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
@@ -330,6 +335,11 @@ pipelines = {
         ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
         ('classifier', MLPClassifier(max_iter=500, random_state=1))
+    ]),
+    'LightGBM': Pipeline([
+        ('feature_selector', FeatureSubsetSelector(voted_features)),
+        ('preprocessor', preprocessor),
+        ('classifier', LGBMClassifier(random_state=1))
     ])
 }
 
