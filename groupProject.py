@@ -406,17 +406,17 @@ if __name__ == '__main__':
 
         print(f"{metric.capitalize()} -> Best: {best_model} ({best_value:.4f})")
 
-
-    # Define the parameter grid for Random Forest
+    
     rf_param_grid = {
-        'classifier__n_estimators': randint(50, 200),
-        'classifier__max_depth': [None] + list(range(5, 30, 5)),
-        'classifier__min_samples_split': [2, 5, 10],
-        'classifier__min_samples_leaf': [1, 2, 4],
-        'classifier__max_features': ['sqrt', 'log2']
+        'classifier__n_estimators': [100, 200],
+        'classifier__max_depth': [10, 20, None],
+        'classifier__min_samples_split': [2, 5],
+        'classifier__min_samples_leaf': [1, 2],
+        'classifier__max_features': ['sqrt'],
     }
 
     f1_scorer = make_scorer(f1_score, pos_label='Fatal')
+    
     # Wrap in RandomizedSearchCV
     rf_random_search = RandomizedSearchCV(
         pipelines['Random Forest'],
@@ -428,6 +428,16 @@ if __name__ == '__main__':
         scoring=f1_scorer,  #accuracy already very high, trying to increase f1
         random_state=1
     )
+    
+    # rf_grid_search = GridSearchCV(
+    #     pipelines['Random Forest'],
+    #     param_grid=rf_param_grid,
+    #     scoring=f1_scorer,
+    #     n_jobs=-1,
+    #     cv=3,
+    #     verbose=2
+    # )
+    
 
     # Fit search on the resampled training data
     print("\n===== RANDOMIZED SEARCH ON RANDOM FOREST =====")
