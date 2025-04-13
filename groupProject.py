@@ -379,8 +379,5 @@ for model_name, model in pipelines.items():
     results[model_name] = evaluate_model(model, X_test, y_test, model_name)
 
 # #! DUMPING LOGISTIC REGRESSION MODEL INTO PKL
-# with open('logistic_regression_model.pkl', 'wb') as file:
-#     pickle.dump(log_reg_test, file)
-
-
-# print("Logistic Regression model saved as logistic_regression_model.pkl")
+# with open('best_model.pkl', 'wb') as file:
+#     pickle.dump(best_model, file)

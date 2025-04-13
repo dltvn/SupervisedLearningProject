@@ -11,7 +11,7 @@ import pickle
 import pandas as pd
 
 # Load the trained logistic regression model
-with open('logistic_regression_model.pkl', 'rb') as file:
+with open('best_model.pkl', 'rb') as file:
     model = pickle.load(file)
 
 # Initialize Flask app
