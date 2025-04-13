@@ -4,7 +4,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from imblearn.over_sampling import SMOTENC
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, make_scorer
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -331,7 +331,7 @@ if __name__ == '__main__':
         'Random Forest': Pipeline([
             ('feature_selector', FeatureSubsetSelector(voted_features)),
             ('preprocessor', preprocessor),
-            ('classifier', RandomForestClassifier(random_state=1))
+            ('classifier', RandomForestClassifier(random_state=1, n_jobs=-1))
         ]),
         'Neural Network': Pipeline([
             ('feature_selector', FeatureSubsetSelector(voted_features)),
@@ -341,7 +341,7 @@ if __name__ == '__main__':
         'LightGBM': Pipeline([
             ('feature_selector', FeatureSubsetSelector(voted_features)),
             ('preprocessor', preprocessor),
-            ('classifier', LGBMClassifier(random_state=1))
+            ('classifier', LGBMClassifier(random_state=1, n_jobs=-1))
         ])
     }
     default_models = {}
@@ -355,7 +355,7 @@ if __name__ == '__main__':
         prec = precision_score(y_test, y_pred, pos_label='Fatal')
         rec = recall_score(y_test, y_pred, pos_label='Fatal')
         f1 = f1_score(y_test, y_pred, pos_label='Fatal')
-        auc = roc_auc_score(y_test, y_prob) if y_prob is not None else None
+        auc = roc_auc_score(y_test, y_prob, labels=['Fatal', 'Non-Fatal Injury']) if y_prob is not None else None
 
         print(f"\n===== {model_name} Performance =====")
         print(f"Accuracy : {acc:.4f}")
@@ -374,7 +374,7 @@ if __name__ == '__main__':
 
         # ROC Curve
         if y_prob is not None:
-            RocCurveDisplay.from_estimator(model, X_test, y_test)
+            RocCurveDisplay.from_estimator(model, X_test, y_test, pos_label="Fatal")
             plt.title(f"{model_name} ROC Curve")
             plt.show()
 
@@ -407,8 +407,42 @@ if __name__ == '__main__':
         print(f"{metric.capitalize()} -> Best: {best_model} ({best_value:.4f})")
 
 
-    #! TEMPORARY
-    best_model = default_models['Random Forest']
+    # Define the parameter grid for Random Forest
+    rf_param_grid = {
+        'classifier__n_estimators': randint(50, 200),
+        'classifier__max_depth': [None] + list(range(5, 30, 5)),
+        'classifier__min_samples_split': [2, 5, 10],
+        'classifier__min_samples_leaf': [1, 2, 4],
+        'classifier__max_features': ['sqrt', 'log2']
+    }
+
+    f1_scorer = make_scorer(f1_score, pos_label='Fatal')
+    # Wrap in RandomizedSearchCV
+    rf_random_search = RandomizedSearchCV(
+        pipelines['Random Forest'],
+        param_distributions=rf_param_grid,
+        n_iter=15,
+        cv=3,
+        verbose=2,
+        n_jobs=-1,
+        scoring=f1_scorer,  #accuracy already very high, trying to increase f1
+        random_state=1
+    )
+
+    # Fit search on the resampled training data
+    print("\n===== RANDOMIZED SEARCH ON RANDOM FOREST =====")
+    rf_random_search.fit(X_train_resampled, y_train_resampled)
+    print("\nBest RF Parameters:")
+    print(rf_random_search.best_params_)
+    print("\nBest RF f1:")
+    print(rf_random_search.best_score_)
+    
+    # Save best estimator
+    best_model = rf_random_search.best_estimator_
+    
+    results['Fine-Tuned Random Forest'] = evaluate_model(best_model, X_test, y_test, 'Fine-Tuned Random Forest')
+
+    
 
     #! DUMPING LOGISTIC REGRESSION MODEL INTO PKL
     with open('best_model.pkl', 'wb') as file:
