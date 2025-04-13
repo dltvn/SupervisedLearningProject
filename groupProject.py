@@ -20,6 +20,7 @@ import pickle
 from scipy.stats import uniform, randint
 from boruta import BorutaPy
 from sklearn.feature_selection import mutual_info_classif, SelectKBest
+from sklearn.base import BaseEstimator, TransformerMixin
 import warnings
 warnings.filterwarnings("ignore", message="Found unknown categories.*")
 
@@ -255,6 +256,17 @@ print(voted_features)
 #! UPDATE X
 X_selected = X_imputed_df[voted_features]
 
+#! TRANSFORMER FOR ONLY USING SELECTED FEATURES
+class FeatureSubsetSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, selected_features):
+        self.selected_features = selected_features
+
+    def fit(self, X, y=None):
+        return self  # no fitting needed
+
+    def transform(self, X):
+        return X[self.selected_features]
+
 #! NUM AND CAT UPDATE
 # Update numerical and categorical columns
 numerical_selected = [col for col in voted_features if col in numerical_columns]
@@ -295,22 +307,27 @@ preprocessor = ColumnTransformer([
 # Model pipeline dictionary
 pipelines = {
     'Logistic Regression': Pipeline([
+        ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
         ('classifier', LogisticRegression(max_iter=1000, random_state=1))
     ]),
     'Decision Tree': Pipeline([
+        ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
         ('classifier', DecisionTreeClassifier(random_state=1))
     ]),
     'SVM': Pipeline([
+        ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
         ('classifier', SVC(probability=True, random_state=1))
     ]),
     'Random Forest': Pipeline([
+        ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
         ('classifier', RandomForestClassifier(random_state=1))
     ]),
     'Neural Network': Pipeline([
+        ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
         ('classifier', MLPClassifier(max_iter=500, random_state=1))
     ])
