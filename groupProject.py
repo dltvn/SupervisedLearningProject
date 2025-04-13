@@ -319,7 +319,7 @@ pipelines = {
     'SVM': Pipeline([
         ('feature_selector', FeatureSubsetSelector(voted_features)),
         ('preprocessor', preprocessor),
-        ('classifier', SVC(probability=True, random_state=1))
+        ('classifier', SVC(probability=True, kernel='linear', random_state=1))
     ]),
     'Random Forest': Pipeline([
         ('feature_selector', FeatureSubsetSelector(voted_features)),
@@ -377,6 +377,21 @@ for model_name, model in pipelines.items():
     print(f"\n===== Training and Evaluating: {model_name} =====")
     model.fit(X_train_resampled, y_train_resampled)
     results[model_name] = evaluate_model(model, X_test, y_test, model_name)
+    
+#! DEFAULT MODEL COMPARISON
+print("\n===== METRICS COMPARISON =====")
+# Compare models using nested loops directly
+for metric in ['accuracy', 'precision', 'recall', 'f1', 'auc']:
+    best_model = None
+    best_value = -np.inf
+
+    for model_name in results:
+        value = results[model_name][metric]
+        if value is not None and value > best_value:
+            best_value = value
+            best_model = model_name
+
+    print(f"{metric.capitalize()} -> Best: {best_model} ({best_value:.4f})")
 
 # #! DUMPING LOGISTIC REGRESSION MODEL INTO PKL
 # with open('best_model.pkl', 'wb') as file:
