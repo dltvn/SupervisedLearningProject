@@ -1,5 +1,5 @@
 from groupProject import FeatureSubsetSelector
-
+from flask_cors import CORS
 # app.py
 from flask import Flask, request, jsonify
 import pickle
@@ -11,7 +11,7 @@ with open('best_model.pkl', 'rb') as file:
 
 # Initialize Flask app
 app = Flask(__name__)
-
+CORS(app)
 @app.route('/')
 def home():
     return "🚦 Accident Severity Classifier API is Running!"

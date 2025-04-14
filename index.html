@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Accident Severity Predictor</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Accident Severity Predictor</h1>
+    <input type="file" id="csvFile" accept=".csv" />
+    <p id="status"></p>
+    <table id="resultsTable" class="hidden">
+      <thead>
+        <tr>
+          <th>Input</th>
+          <th>Prediction</th>
+          <th>Probabilities</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+body {
+    font-family: sans-serif;
+    background: #f9f9f9;
+    padding: 20px;
+  }
+  
+  .container {
+    max-width: 960px;
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  h1 {
+    margin-bottom: 16px;
+  }
+  
+  input[type="file"] {
+    margin-bottom: 16px;
+  }
+  
+  #status {
+    margin: 10px 0;
+    font-weight: bold;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+  }
+  
+  th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    vertical-align: top;
+  }
+  
+  pre {
+    white-space: pre-wrap;
+    font-size: 0.85em;
+    margin: 0;
+  }
+  
+  .error {
+    color: red;
+  }
+  
+  .hidden {
+    display: none;
+  }
+  
